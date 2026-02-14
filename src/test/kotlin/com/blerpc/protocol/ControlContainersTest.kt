@@ -1,12 +1,12 @@
 package com.blerpc.protocol
 
-import org.junit.Assert.*
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 class ControlContainersTest {
-
     @Test
     fun timeoutRequest() {
         val c = makeTimeoutRequest(transactionId = 5)
@@ -49,11 +49,12 @@ class ControlContainersTest {
 
     @Test
     fun capabilitiesResponse() {
-        val c = makeCapabilitiesResponse(
-            transactionId = 7,
-            maxRequestPayloadSize = 256,
-            maxResponsePayloadSize = 65535
-        )
+        val c =
+            makeCapabilitiesResponse(
+                transactionId = 7,
+                maxRequestPayloadSize = 256,
+                maxResponsePayloadSize = 65535,
+            )
         assertEquals(ContainerType.CONTROL, c.containerType)
         assertEquals(ControlCmd.CAPABILITIES, c.controlCmd)
         assertEquals(4, c.payload.size)
@@ -64,10 +65,11 @@ class ControlContainersTest {
 
     @Test
     fun errorResponse() {
-        val c = makeErrorResponse(
-            transactionId = 10,
-            errorCode = BLERPC_ERROR_RESPONSE_TOO_LARGE.toInt()
-        )
+        val c =
+            makeErrorResponse(
+                transactionId = 10,
+                errorCode = BLERPC_ERROR_RESPONSE_TOO_LARGE.toInt(),
+            )
         assertEquals(ContainerType.CONTROL, c.containerType)
         assertEquals(ControlCmd.ERROR, c.controlCmd)
         assertArrayEquals(byteArrayOf(0x01), c.payload)

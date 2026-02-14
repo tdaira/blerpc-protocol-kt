@@ -1,10 +1,11 @@
 package com.blerpc.protocol
 
-import org.junit.Assert.*
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ContainerSplitterTest {
-
     @Test
     fun smallPayloadSingleContainer() {
         val splitter = ContainerSplitter(mtu = 247)

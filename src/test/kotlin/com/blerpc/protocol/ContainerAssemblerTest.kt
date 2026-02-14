@@ -1,20 +1,22 @@
 package com.blerpc.protocol
 
-import org.junit.Assert.*
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ContainerAssemblerTest {
-
     @Test
     fun singleContainerAssembly() {
         val assembler = ContainerAssembler()
-        val c = Container(
-            transactionId = 0,
-            sequenceNumber = 0,
-            containerType = ContainerType.FIRST,
-            totalLength = 5,
-            payload = "hello".toByteArray()
-        )
+        val c =
+            Container(
+                transactionId = 0,
+                sequenceNumber = 0,
+                containerType = ContainerType.FIRST,
+                totalLength = 5,
+                payload = "hello".toByteArray(),
+            )
         val result = assembler.feed(c)
         assertArrayEquals("hello".toByteArray(), result)
     }
@@ -22,19 +24,21 @@ class ContainerAssemblerTest {
     @Test
     fun multiContainerAssembly() {
         val assembler = ContainerAssembler()
-        val c1 = Container(
-            transactionId = 1,
-            sequenceNumber = 0,
-            containerType = ContainerType.FIRST,
-            totalLength = 8,
-            payload = "hell".toByteArray()
-        )
-        val c2 = Container(
-            transactionId = 1,
-            sequenceNumber = 1,
-            containerType = ContainerType.SUBSEQUENT,
-            payload = "o wo".toByteArray()
-        )
+        val c1 =
+            Container(
+                transactionId = 1,
+                sequenceNumber = 0,
+                containerType = ContainerType.FIRST,
+                totalLength = 8,
+                payload = "hell".toByteArray(),
+            )
+        val c2 =
+            Container(
+                transactionId = 1,
+                sequenceNumber = 1,
+                containerType = ContainerType.SUBSEQUENT,
+                payload = "o wo".toByteArray(),
+            )
         assertNull(assembler.feed(c1))
         val result = assembler.feed(c2)
         assertArrayEquals("hello wo".toByteArray(), result)
@@ -43,19 +47,22 @@ class ContainerAssemblerTest {
     @Test
     fun sequenceGapDiscardsTransaction() {
         val assembler = ContainerAssembler()
-        val c1 = Container(
-            transactionId = 2,
-            sequenceNumber = 0,
-            containerType = ContainerType.FIRST,
-            totalLength = 10,
-            payload = "abc".toByteArray()
-        )
-        val cBad = Container(
-            transactionId = 2,
-            sequenceNumber = 2, // Gap: expected 1
-            containerType = ContainerType.SUBSEQUENT,
-            payload = "def".toByteArray()
-        )
+        val c1 =
+            Container(
+                transactionId = 2,
+                sequenceNumber = 0,
+                containerType = ContainerType.FIRST,
+                totalLength = 10,
+                payload = "abc".toByteArray(),
+            )
+        val cBad =
+            Container(
+                transactionId = 2,
+                // Gap: expected 1
+                sequenceNumber = 2,
+                containerType = ContainerType.SUBSEQUENT,
+                payload = "def".toByteArray(),
+            )
         assertNull(assembler.feed(c1))
         val result = assembler.feed(cBad)
         assertNull(result)
@@ -71,12 +78,13 @@ class ContainerAssemblerTest {
     @Test
     fun subsequentWithoutFirstIgnored() {
         val assembler = ContainerAssembler()
-        val c = Container(
-            transactionId = 99,
-            sequenceNumber = 1,
-            containerType = ContainerType.SUBSEQUENT,
-            payload = "orphan".toByteArray()
-        )
+        val c =
+            Container(
+                transactionId = 99,
+                sequenceNumber = 1,
+                containerType = ContainerType.SUBSEQUENT,
+                payload = "orphan".toByteArray(),
+            )
         assertNull(assembler.feed(c))
     }
 

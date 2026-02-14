@@ -3,7 +3,8 @@ package com.blerpc.protocol
 enum class ContainerType(val value: Int) {
     FIRST(0x00),
     SUBSEQUENT(0x01),
-    CONTROL(0x03);
+    CONTROL(0x03),
+    ;
 
     companion object {
         fun fromValue(v: Int): ContainerType = entries.first { it.value == v }
@@ -16,7 +17,8 @@ enum class ControlCmd(val value: Int) {
     STREAM_END_C2P(0x02),
     STREAM_END_P2C(0x03),
     CAPABILITIES(0x04),
-    ERROR(0x05);
+    ERROR(0x05),
+    ;
 
     companion object {
         fun fromValue(v: Int): ControlCmd = entries.first { it.value == v }

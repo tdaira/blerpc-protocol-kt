@@ -11,7 +11,10 @@ class ContainerSplitter(private val mtu: Int = 247) {
         return tid
     }
 
-    fun split(payload: ByteArray, transactionId: Int? = null): List<Container> {
+    fun split(
+        payload: ByteArray,
+        transactionId: Int? = null,
+    ): List<Container> {
         val tid = transactionId ?: nextTransactionId()
         val totalLength = payload.size
         if (totalLength > 65535) {
@@ -30,8 +33,8 @@ class ContainerSplitter(private val mtu: Int = 247) {
                 sequenceNumber = 0,
                 containerType = ContainerType.FIRST,
                 totalLength = totalLength,
-                payload = firstPayload
-            )
+                payload = firstPayload,
+            ),
         )
 
         var offset = firstPayloadSize
@@ -42,7 +45,7 @@ class ContainerSplitter(private val mtu: Int = 247) {
             if (seq > 255) {
                 throw IllegalArgumentException(
                     "Payload requires more than 256 containers (seq=$seq), " +
-                            "exceeding 8-bit sequence_number limit"
+                        "exceeding 8-bit sequence_number limit",
                 )
             }
             val chunkSize = minOf(payload.size - offset, subsequentMaxPayload)
@@ -52,8 +55,8 @@ class ContainerSplitter(private val mtu: Int = 247) {
                     transactionId = tid,
                     sequenceNumber = seq,
                     containerType = ContainerType.SUBSEQUENT,
-                    payload = chunk
-                )
+                    payload = chunk,
+                ),
             )
             offset += chunkSize
             seq++

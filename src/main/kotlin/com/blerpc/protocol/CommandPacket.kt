@@ -5,7 +5,8 @@ import java.nio.ByteOrder
 
 enum class CommandType(val value: Int) {
     REQUEST(0),
-    RESPONSE(1);
+    RESPONSE(1),
+    ;
 
     companion object {
         fun fromValue(v: Int): CommandType = entries.first { it.value == v }
@@ -15,7 +16,7 @@ enum class CommandType(val value: Int) {
 data class CommandPacket(
     val cmdType: CommandType,
     val cmdName: String,
-    val data: ByteArray = ByteArray(0)
+    val data: ByteArray = ByteArray(0),
 ) {
     fun serialize(): ByteArray {
         val nameBytes = cmdName.toByteArray(Charsets.US_ASCII)
@@ -23,8 +24,9 @@ data class CommandPacket(
         require(data.size <= 65535) { "data too long: ${data.size} > 65535" }
 
         val byte0 = (cmdType.value and 0x01) shl 7
-        val buf = ByteBuffer.allocate(1 + 1 + nameBytes.size + 2 + data.size)
-            .order(ByteOrder.LITTLE_ENDIAN)
+        val buf =
+            ByteBuffer.allocate(1 + 1 + nameBytes.size + 2 + data.size)
+                .order(ByteOrder.LITTLE_ENDIAN)
         buf.put(byte0.toByte())
         buf.put(nameBytes.size.toByte())
         buf.put(nameBytes)
@@ -59,8 +61,9 @@ data class CommandPacket(
             val cmdName = String(data, offset, cmdNameLen, Charsets.US_ASCII)
             offset += cmdNameLen
 
-            val dataLen = ByteBuffer.wrap(data, offset, 2)
-                .order(ByteOrder.LITTLE_ENDIAN).short.toInt() and 0xFFFF
+            val dataLen =
+                ByteBuffer.wrap(data, offset, 2)
+                    .order(ByteOrder.LITTLE_ENDIAN).short.toInt() and 0xFFFF
             offset += 2
 
             val payload = data.copyOfRange(offset, offset + dataLen)

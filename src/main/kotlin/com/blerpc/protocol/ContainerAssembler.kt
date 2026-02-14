@@ -11,12 +11,13 @@ class ContainerAssembler {
         val tid = container.transactionId
 
         if (container.containerType == ContainerType.FIRST) {
-            transactions[tid] = AssemblyState(
-                totalLength = container.totalLength,
-                expectedSeq = 1,
-                fragments = mutableListOf(container.payload),
-                receivedLength = container.payload.size
-            )
+            transactions[tid] =
+                AssemblyState(
+                    totalLength = container.totalLength,
+                    expectedSeq = 1,
+                    fragments = mutableListOf(container.payload),
+                    receivedLength = container.payload.size,
+                )
         } else if (tid in transactions) {
             val state = transactions[tid]!!
             if (container.sequenceNumber != state.expectedSeq) {
@@ -53,6 +54,6 @@ class ContainerAssembler {
         val totalLength: Int,
         var expectedSeq: Int,
         val fragments: MutableList<ByteArray>,
-        var receivedLength: Int
+        var receivedLength: Int,
     )
 }

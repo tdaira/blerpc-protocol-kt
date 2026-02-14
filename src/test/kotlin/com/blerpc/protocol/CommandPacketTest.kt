@@ -1,17 +1,18 @@
 package com.blerpc.protocol
 
-import org.junit.Assert.*
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class CommandPacketTest {
-
     @Test
     fun requestRoundtrip() {
-        val cmd = CommandPacket(
-            cmdType = CommandType.REQUEST,
-            cmdName = "echo",
-            data = byteArrayOf(0x0a, 0x05, 0x68, 0x65, 0x6c, 0x6c, 0x6f)
-        )
+        val cmd =
+            CommandPacket(
+                cmdType = CommandType.REQUEST,
+                cmdName = "echo",
+                data = byteArrayOf(0x0a, 0x05, 0x68, 0x65, 0x6c, 0x6c, 0x6f),
+            )
         val serialized = cmd.serialize()
         val cmd2 = CommandPacket.deserialize(serialized)
         assertEquals(CommandType.REQUEST, cmd2.cmdType)
@@ -21,11 +22,12 @@ class CommandPacketTest {
 
     @Test
     fun responseRoundtrip() {
-        val cmd = CommandPacket(
-            cmdType = CommandType.RESPONSE,
-            cmdName = "flash_read",
-            data = byteArrayOf(0x01, 0x02, 0x03)
-        )
+        val cmd =
+            CommandPacket(
+                cmdType = CommandType.RESPONSE,
+                cmdName = "flash_read",
+                data = byteArrayOf(0x01, 0x02, 0x03),
+            )
         val serialized = cmd.serialize()
         val cmd2 = CommandPacket.deserialize(serialized)
         assertEquals(CommandType.RESPONSE, cmd2.cmdType)

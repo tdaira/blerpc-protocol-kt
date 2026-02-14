@@ -1,21 +1,22 @@
 package com.blerpc.protocol
 
-import org.junit.Assert.*
+import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 class ContainerTest {
-
     @Test
     fun firstContainerRoundtrip() {
-        val c = Container(
-            transactionId = 42,
-            sequenceNumber = 0,
-            containerType = ContainerType.FIRST,
-            totalLength = 100,
-            payload = byteArrayOf(0x01, 0x02, 0x03)
-        )
+        val c =
+            Container(
+                transactionId = 42,
+                sequenceNumber = 0,
+                containerType = ContainerType.FIRST,
+                totalLength = 100,
+                payload = byteArrayOf(0x01, 0x02, 0x03),
+            )
         val data = c.serialize()
         val c2 = Container.deserialize(data)
         assertEquals(42, c2.transactionId)
@@ -27,12 +28,13 @@ class ContainerTest {
 
     @Test
     fun subsequentContainerRoundtrip() {
-        val c = Container(
-            transactionId = 7,
-            sequenceNumber = 3,
-            containerType = ContainerType.SUBSEQUENT,
-            payload = byteArrayOf(0xaa.toByte(), 0xbb.toByte())
-        )
+        val c =
+            Container(
+                transactionId = 7,
+                sequenceNumber = 3,
+                containerType = ContainerType.SUBSEQUENT,
+                payload = byteArrayOf(0xaa.toByte(), 0xbb.toByte()),
+            )
         val data = c.serialize()
         val c2 = Container.deserialize(data)
         assertEquals(7, c2.transactionId)
@@ -44,13 +46,14 @@ class ContainerTest {
     @Test
     fun controlContainerRoundtrip() {
         val payload = ByteBuffer.allocate(2).order(ByteOrder.LITTLE_ENDIAN).putShort(500).array()
-        val c = Container(
-            transactionId = 1,
-            sequenceNumber = 0,
-            containerType = ContainerType.CONTROL,
-            controlCmd = ControlCmd.TIMEOUT,
-            payload = payload
-        )
+        val c =
+            Container(
+                transactionId = 1,
+                sequenceNumber = 0,
+                containerType = ContainerType.CONTROL,
+                controlCmd = ControlCmd.TIMEOUT,
+                payload = payload,
+            )
         val data = c.serialize()
         val c2 = Container.deserialize(data)
         assertEquals(ContainerType.CONTROL, c2.containerType)
@@ -61,13 +64,14 @@ class ContainerTest {
 
     @Test
     fun flagsByteEncoding() {
-        val c = Container(
-            transactionId = 0,
-            sequenceNumber = 0,
-            containerType = ContainerType.CONTROL,
-            controlCmd = ControlCmd.STREAM_END_C2P,
-            payload = ByteArray(0)
-        )
+        val c =
+            Container(
+                transactionId = 0,
+                sequenceNumber = 0,
+                containerType = ContainerType.CONTROL,
+                controlCmd = ControlCmd.STREAM_END_C2P,
+                payload = ByteArray(0),
+            )
         val data = c.serialize()
         val flags = data[2].toInt() and 0xFF
         // type=0b11 in bits 7-6 => 0xC0
@@ -82,24 +86,26 @@ class ContainerTest {
 
     @Test
     fun firstContainerHeaderSize() {
-        val c = Container(
-            transactionId = 0,
-            sequenceNumber = 0,
-            containerType = ContainerType.FIRST,
-            totalLength = 0,
-            payload = ByteArray(0)
-        )
+        val c =
+            Container(
+                transactionId = 0,
+                sequenceNumber = 0,
+                containerType = ContainerType.FIRST,
+                totalLength = 0,
+                payload = ByteArray(0),
+            )
         assertEquals(FIRST_HEADER_SIZE, c.serialize().size)
     }
 
     @Test
     fun subsequentContainerHeaderSize() {
-        val c = Container(
-            transactionId = 0,
-            sequenceNumber = 0,
-            containerType = ContainerType.SUBSEQUENT,
-            payload = ByteArray(0)
-        )
+        val c =
+            Container(
+                transactionId = 0,
+                sequenceNumber = 0,
+                containerType = ContainerType.SUBSEQUENT,
+                payload = ByteArray(0),
+            )
         assertEquals(SUBSEQUENT_HEADER_SIZE, c.serialize().size)
     }
 }

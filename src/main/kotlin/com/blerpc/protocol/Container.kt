@@ -9,14 +9,15 @@ data class Container(
     val containerType: ContainerType,
     val controlCmd: ControlCmd = ControlCmd.NONE,
     val totalLength: Int = 0,
-    val payload: ByteArray = ByteArray(0)
+    val payload: ByteArray = ByteArray(0),
 ) {
     fun serialize(): ByteArray {
         val flags = ((containerType.value and 0x03) shl 6) or ((controlCmd.value and 0x0F) shl 2)
 
         return if (containerType == ContainerType.FIRST) {
-            val buf = ByteBuffer.allocate(FIRST_HEADER_SIZE + payload.size)
-                .order(ByteOrder.LITTLE_ENDIAN)
+            val buf =
+                ByteBuffer.allocate(FIRST_HEADER_SIZE + payload.size)
+                    .order(ByteOrder.LITTLE_ENDIAN)
             buf.put(transactionId.toByte())
             buf.put(sequenceNumber.toByte())
             buf.put(flags.toByte())
@@ -25,8 +26,9 @@ data class Container(
             buf.put(payload)
             buf.array()
         } else {
-            val buf = ByteBuffer.allocate(SUBSEQUENT_HEADER_SIZE + payload.size)
-                .order(ByteOrder.LITTLE_ENDIAN)
+            val buf =
+                ByteBuffer.allocate(SUBSEQUENT_HEADER_SIZE + payload.size)
+                    .order(ByteOrder.LITTLE_ENDIAN)
             buf.put(transactionId.toByte())
             buf.put(sequenceNumber.toByte())
             buf.put(flags.toByte())
@@ -40,11 +42,11 @@ data class Container(
         if (this === other) return true
         if (other !is Container) return false
         return transactionId == other.transactionId &&
-                sequenceNumber == other.sequenceNumber &&
-                containerType == other.containerType &&
-                controlCmd == other.controlCmd &&
-                totalLength == other.totalLength &&
-                payload.contentEquals(other.payload)
+            sequenceNumber == other.sequenceNumber &&
+            containerType == other.containerType &&
+            controlCmd == other.controlCmd &&
+            totalLength == other.totalLength &&
+            payload.contentEquals(other.payload)
     }
 
     override fun hashCode(): Int {
@@ -73,8 +75,9 @@ data class Container(
                 if (data.size < FIRST_HEADER_SIZE) {
                     throw IllegalArgumentException("FIRST container too short: ${data.size} bytes")
                 }
-                val totalLength = ByteBuffer.wrap(data, 3, 2)
-                    .order(ByteOrder.LITTLE_ENDIAN).short.toInt() and 0xFFFF
+                val totalLength =
+                    ByteBuffer.wrap(data, 3, 2)
+                        .order(ByteOrder.LITTLE_ENDIAN).short.toInt() and 0xFFFF
                 val payloadLen = data[5].toInt() and 0xFF
                 val payload = data.copyOfRange(FIRST_HEADER_SIZE, FIRST_HEADER_SIZE + payloadLen)
                 Container(transactionId, sequenceNumber, containerType, controlCmd, totalLength, payload)

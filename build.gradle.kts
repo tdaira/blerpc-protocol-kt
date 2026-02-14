@@ -3,6 +3,13 @@ plugins {
     `maven-publish`
     kotlin("jvm") version "1.9.22"
     id("com.google.protobuf") version "0.9.4"
+    id("org.jlleitschuh.gradle.ktlint") version "12.1.2"
+}
+
+ktlint {
+    filter {
+        exclude("**/generated/**")
+    }
 }
 
 group = "com.blerpc"
