@@ -39,4 +39,4 @@ dependencies {
 
 ## License
 
-[LGPL-3.0](LICENSE)
+[LGPL-3.0](LICENSE) with [Static Linking Exception](LICENSING_EXCEPTION)
