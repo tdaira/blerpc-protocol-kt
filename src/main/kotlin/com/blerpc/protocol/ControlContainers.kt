@@ -56,26 +56,38 @@ fun makeStreamEndP2C(
 
 fun makeCapabilitiesRequest(
     transactionId: Int,
+    maxRequestPayloadSize: Int = 0,
+    maxResponsePayloadSize: Int = 0,
+    flags: Int = 0,
     sequenceNumber: Int = 0,
-): Container =
-    Container(
+): Container {
+    val payload =
+        ByteBuffer.allocate(6).order(ByteOrder.LITTLE_ENDIAN)
+            .putShort(maxRequestPayloadSize.toShort())
+            .putShort(maxResponsePayloadSize.toShort())
+            .putShort(flags.toShort())
+            .array()
+    return Container(
         transactionId = transactionId,
         sequenceNumber = sequenceNumber,
         containerType = ContainerType.CONTROL,
         controlCmd = ControlCmd.CAPABILITIES,
-        payload = ByteArray(0),
+        payload = payload,
     )
+}
 
 fun makeCapabilitiesResponse(
     transactionId: Int,
     maxRequestPayloadSize: Int,
     maxResponsePayloadSize: Int,
+    flags: Int = 0,
     sequenceNumber: Int = 0,
 ): Container {
     val payload =
-        ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN)
+        ByteBuffer.allocate(6).order(ByteOrder.LITTLE_ENDIAN)
             .putShort(maxRequestPayloadSize.toShort())
             .putShort(maxResponsePayloadSize.toShort())
+            .putShort(flags.toShort())
             .array()
     return Container(
         transactionId = transactionId,
@@ -97,4 +109,17 @@ fun makeErrorResponse(
         containerType = ContainerType.CONTROL,
         controlCmd = ControlCmd.ERROR,
         payload = byteArrayOf(errorCode.toByte()),
+    )
+
+fun makeKeyExchange(
+    transactionId: Int,
+    payload: ByteArray,
+    sequenceNumber: Int = 0,
+): Container =
+    Container(
+        transactionId = transactionId,
+        sequenceNumber = sequenceNumber,
+        containerType = ContainerType.CONTROL,
+        controlCmd = ControlCmd.KEY_EXCHANGE,
+        payload = payload,
     )

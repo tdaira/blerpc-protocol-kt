@@ -18,6 +18,7 @@ enum class ControlCmd(val value: Int) {
     STREAM_END_P2C(0x03),
     CAPABILITIES(0x04),
     ERROR(0x05),
+    KEY_EXCHANGE(0x06),
     ;
 
     companion object {
@@ -30,3 +31,4 @@ const val SUBSEQUENT_HEADER_SIZE = 4
 const val CONTROL_HEADER_SIZE = 4
 const val ATT_OVERHEAD = 3
 const val BLERPC_ERROR_RESPONSE_TOO_LARGE: Byte = 0x01
+const val CAPABILITY_FLAG_ENCRYPTION_SUPPORTED: Int = 0x0001
