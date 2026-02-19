@@ -81,73 +81,78 @@ class CounterZeroReplayTest {
 
 class CentralPerformKeyExchangeTest {
     @Test
-    fun testFullHandshake() = runBlocking {
-        val x = BlerpcCrypto.generateX25519KeyPair()
-        val ed = BlerpcCrypto.generateEd25519KeyPair()
-        val periphKx = PeripheralKeyExchange(x.privateKeyRaw, x.publicKeyRaw, ed.privateKeyRaw, ed.publicKeyRaw)
+    fun testFullHandshake() =
+        runBlocking {
+            val x = BlerpcCrypto.generateX25519KeyPair()
+            val ed = BlerpcCrypto.generateEd25519KeyPair()
+            val periphKx = PeripheralKeyExchange(x.privateKeyRaw, x.publicKeyRaw, ed.privateKeyRaw, ed.publicKeyRaw)
 
-        val payloads = mutableListOf<ByteArray>()
-        var periphSession: BlerpcCryptoSession? = null
+            val payloads = mutableListOf<ByteArray>()
+            var periphSession: BlerpcCryptoSession? = null
 
-        val session = centralPerformKeyExchange(
-            send = { payload ->
-                val (response, sess) = periphKx.handleStep(payload)
-                if (sess != null) periphSession = sess
-                payloads.add(response)
-            },
-            receive = { payloads.removeFirst() },
-        )
+            val session =
+                centralPerformKeyExchange(
+                    send = { payload ->
+                        val (response, sess) = periphKx.handleStep(payload)
+                        if (sess != null) periphSession = sess
+                        payloads.add(response)
+                    },
+                    receive = { payloads.removeFirst() },
+                )
 
-        assertNotNull(session)
-        assertNotNull(periphSession)
+            assertNotNull(session)
+            assertNotNull(periphSession)
 
-        // Verify sessions work by encrypting/decrypting
-        val encrypted = session.encrypt("test".toByteArray())
-        val decrypted = periphSession!!.decrypt(encrypted)
-        assertArrayEquals("test".toByteArray(), decrypted)
-    }
+            // Verify sessions work by encrypting/decrypting
+            val encrypted = session.encrypt("test".toByteArray())
+            val decrypted = periphSession!!.decrypt(encrypted)
+            assertArrayEquals("test".toByteArray(), decrypted)
+        }
 
     @Test(expected = IllegalArgumentException::class)
-    fun testVerifyCbReject(): Unit = runBlocking {
-        val x = BlerpcCrypto.generateX25519KeyPair()
-        val ed = BlerpcCrypto.generateEd25519KeyPair()
-        val periphKx = PeripheralKeyExchange(x.privateKeyRaw, x.publicKeyRaw, ed.privateKeyRaw, ed.publicKeyRaw)
+    fun testVerifyCbReject(): Unit =
+        runBlocking {
+            val x = BlerpcCrypto.generateX25519KeyPair()
+            val ed = BlerpcCrypto.generateEd25519KeyPair()
+            val periphKx = PeripheralKeyExchange(x.privateKeyRaw, x.publicKeyRaw, ed.privateKeyRaw, ed.publicKeyRaw)
 
-        val payloads = mutableListOf<ByteArray>()
+            val payloads = mutableListOf<ByteArray>()
 
-        centralPerformKeyExchange(
-            send = { payload ->
-                val (response, _) = periphKx.handleStep(payload)
-                payloads.add(response)
-            },
-            receive = { payloads.removeFirst() },
-            verifyKeyCb = { false },
-        )
-    }
+            centralPerformKeyExchange(
+                send = { payload ->
+                    val (response, _) = periphKx.handleStep(payload)
+                    payloads.add(response)
+                },
+                receive = { payloads.removeFirst() },
+                verifyKeyCb = { false },
+            )
+        }
 
     @Test
-    fun testVerifyCbAccept() = runBlocking {
-        val x = BlerpcCrypto.generateX25519KeyPair()
-        val ed = BlerpcCrypto.generateEd25519KeyPair()
-        val periphKx = PeripheralKeyExchange(x.privateKeyRaw, x.publicKeyRaw, ed.privateKeyRaw, ed.publicKeyRaw)
+    fun testVerifyCbAccept() =
+        runBlocking {
+            val x = BlerpcCrypto.generateX25519KeyPair()
+            val ed = BlerpcCrypto.generateEd25519KeyPair()
+            val periphKx = PeripheralKeyExchange(x.privateKeyRaw, x.publicKeyRaw, ed.privateKeyRaw, ed.publicKeyRaw)
 
-        val payloads = mutableListOf<ByteArray>()
-        val seenKeys = mutableListOf<ByteArray>()
+            val payloads = mutableListOf<ByteArray>()
+            val seenKeys = mutableListOf<ByteArray>()
 
-        val session = centralPerformKeyExchange(
-            send = { payload ->
-                val (response, _) = periphKx.handleStep(payload)
-                payloads.add(response)
-            },
-            receive = { payloads.removeFirst() },
-            verifyKeyCb = { key ->
-                seenKeys.add(key)
-                true
-            },
-        )
+            val session =
+                centralPerformKeyExchange(
+                    send = { payload ->
+                        val (response, _) = periphKx.handleStep(payload)
+                        payloads.add(response)
+                    },
+                    receive = { payloads.removeFirst() },
+                    verifyKeyCb = { key ->
+                        seenKeys.add(key)
+                        true
+                    },
+                )
 
-        assertNotNull(session)
-        assertEquals(1, seenKeys.size)
-        assertArrayEquals(ed.publicKeyRaw, seenKeys[0])
-    }
+            assertNotNull(session)
+            assertEquals(1, seenKeys.size)
+            assertArrayEquals(ed.publicKeyRaw, seenKeys[0])
+        }
 }

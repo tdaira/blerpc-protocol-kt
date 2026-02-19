@@ -1,5 +1,6 @@
 package com.blerpc.protocol
 
+import org.bouncycastle.math.ec.rfc8032.Ed25519
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.KeyFactory
@@ -11,7 +12,6 @@ import javax.crypto.Cipher
 import javax.crypto.KeyAgreement
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
-import org.bouncycastle.math.ec.rfc8032.Ed25519
 
 /** Direction bytes for nonce construction. */
 const val DIRECTION_C2P: Byte = 0x00
@@ -387,7 +387,7 @@ class PeripheralKeyExchange(
                 Pair(step4, session)
             }
             else -> throw IllegalArgumentException(
-                "Invalid key exchange step: 0x${payload[0].toInt().and(0xFF).toString(16).padStart(2, '0')}"
+                "Invalid key exchange step: 0x${payload[0].toInt().and(0xFF).toString(16).padStart(2, '0')}",
             )
         }
     }
