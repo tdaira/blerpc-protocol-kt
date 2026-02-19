@@ -13,7 +13,7 @@ ktlint {
 }
 
 group = "com.blerpc"
-version = "0.2.0"
+version = "0.3.0"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -45,7 +45,9 @@ protobuf {
 
 dependencies {
     api("com.google.protobuf:protobuf-javalite:3.25.2")
+    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
 }
 
 publishing {

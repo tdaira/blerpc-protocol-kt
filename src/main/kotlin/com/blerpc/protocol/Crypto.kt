@@ -5,13 +5,13 @@ import java.nio.ByteOrder
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.SecureRandom
-import java.security.Signature
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 import javax.crypto.Cipher
 import javax.crypto.KeyAgreement
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
+import org.bouncycastle.math.ec.rfc8032.Ed25519
 
 /** Direction bytes for nonce construction. */
 const val DIRECTION_C2P: Byte = 0x00
@@ -37,16 +37,6 @@ private val X25519_X509_PREFIX =
     byteArrayOf(
         0x30, 0x2A, 0x30, 0x05, 0x06, 0x03, 0x2B, 0x65,
         0x6E, 0x03, 0x21, 0x00,
-    )
-private val ED25519_PKCS8_PREFIX =
-    byteArrayOf(
-        0x30, 0x2E, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06,
-        0x03, 0x2B, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20,
-    )
-private val ED25519_X509_PREFIX =
-    byteArrayOf(
-        0x30, 0x2A, 0x30, 0x05, 0x06, 0x03, 0x2B, 0x65,
-        0x70, 0x03, 0x21, 0x00,
     )
 
 object BlerpcCrypto {
@@ -95,23 +85,20 @@ object BlerpcCrypto {
     )
 
     fun generateEd25519KeyPair(): Ed25519KeyPair {
-        val kpg = KeyPairGenerator.getInstance("Ed25519")
-        val kp = kpg.generateKeyPair()
-        val privRaw = kp.private.encoded.let { it.copyOfRange(ED25519_PKCS8_PREFIX.size, it.size) }
-        val pubRaw = kp.public.encoded.let { it.copyOfRange(ED25519_X509_PREFIX.size, it.size) }
-        return Ed25519KeyPair(privRaw, pubRaw)
+        val seed = ByteArray(Ed25519.SECRET_KEY_SIZE)
+        secureRandom.nextBytes(seed)
+        val pubRaw = ByteArray(Ed25519.PUBLIC_KEY_SIZE)
+        Ed25519.generatePublicKey(seed, 0, pubRaw, 0)
+        return Ed25519KeyPair(seed, pubRaw)
     }
 
     fun ed25519Sign(
         privateKeyRaw: ByteArray,
         message: ByteArray,
     ): ByteArray {
-        val kf = KeyFactory.getInstance("Ed25519")
-        val privKey = kf.generatePrivate(PKCS8EncodedKeySpec(ED25519_PKCS8_PREFIX + privateKeyRaw))
-        val sig = Signature.getInstance("Ed25519")
-        sig.initSign(privKey)
-        sig.update(message)
-        return sig.sign()
+        val sig = ByteArray(Ed25519.SIGNATURE_SIZE)
+        Ed25519.sign(privateKeyRaw, 0, message, 0, message.size, sig, 0)
+        return sig
     }
 
     fun ed25519Verify(
@@ -120,12 +107,7 @@ object BlerpcCrypto {
         signature: ByteArray,
     ): Boolean {
         return try {
-            val kf = KeyFactory.getInstance("Ed25519")
-            val pubKey = kf.generatePublic(X509EncodedKeySpec(ED25519_X509_PREFIX + publicKeyRaw))
-            val sig = Signature.getInstance("Ed25519")
-            sig.initVerify(pubKey)
-            sig.update(message)
-            sig.verify(signature)
+            Ed25519.verify(signature, 0, publicKeyRaw, 0, message, 0, message.size)
         } catch (_: Exception) {
             false
         }
@@ -391,4 +373,42 @@ class PeripheralKeyExchange(
 
         return Pair(step4, session)
     }
+
+    fun handleStep(payload: ByteArray): Pair<ByteArray, BlerpcCryptoSession?> {
+        require(payload.isNotEmpty()) { "Empty key exchange payload" }
+        return when (payload[0]) {
+            KEY_EXCHANGE_STEP1 -> Pair(processStep1(payload), null)
+            KEY_EXCHANGE_STEP3 -> {
+                val (step4, session) = processStep3(payload)
+                Pair(step4, session)
+            }
+            else -> throw IllegalArgumentException(
+                "Invalid key exchange step: 0x${payload[0].toInt().and(0xFF).toString(16).padStart(2, '0')}"
+            )
+        }
+    }
+}
+
+suspend fun centralPerformKeyExchange(
+    send: suspend (ByteArray) -> Unit,
+    receive: suspend () -> ByteArray,
+    verifyKeyCb: ((ByteArray) -> Boolean)? = null,
+): BlerpcCryptoSession {
+    val kx = CentralKeyExchange()
+
+    // Step 1: Send central's ephemeral public key
+    val step1 = kx.start()
+    send(step1)
+
+    // Step 2: Receive peripheral's response
+    val step2 = receive()
+
+    // Step 2 -> Step 3: Verify and produce confirmation
+    val step3 = kx.processStep2(step2, verifyKeyCb)
+    send(step3)
+
+    // Step 4: Receive peripheral's confirmation
+    val step4 = receive()
+
+    return kx.finish(step4)
 }
