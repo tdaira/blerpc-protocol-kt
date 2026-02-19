@@ -282,6 +282,7 @@ class BlerpcCryptoSession(
     private val sessionKey = sessionKey.copyOf()
     private var txCounter = 0
     private var rxCounter = 0
+    private var rxFirstDone = false
     private val txDirection: Byte = if (isCentral) DIRECTION_C2P else DIRECTION_P2C
     private val rxDirection: Byte = if (isCentral) DIRECTION_P2C else DIRECTION_C2P
 
@@ -293,8 +294,11 @@ class BlerpcCryptoSession(
 
     fun decrypt(data: ByteArray): ByteArray {
         val (counter, plaintext) = BlerpcCrypto.decryptCommand(sessionKey, rxDirection, data)
-        require(counter > rxCounter || (rxCounter == 0 && counter == 0)) { "Replay detected" }
+        if (rxFirstDone) {
+            require(counter > rxCounter) { "Replay detected" }
+        }
         rxCounter = counter
+        rxFirstDone = true
         return plaintext
     }
 }

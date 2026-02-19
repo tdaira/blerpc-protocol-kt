@@ -56,6 +56,29 @@ class PeripheralHandleStepTest {
     }
 }
 
+class CounterZeroReplayTest {
+    @Test(expected = IllegalArgumentException::class)
+    fun testCounterZeroReplayAttack() {
+        val x = BlerpcCrypto.generateX25519KeyPair()
+        val ed = BlerpcCrypto.generateEd25519KeyPair()
+        val periphKx = PeripheralKeyExchange(x.privateKeyRaw, x.publicKeyRaw, ed.privateKeyRaw, ed.publicKeyRaw)
+
+        val centralKx = CentralKeyExchange()
+        val step1 = centralKx.start()
+        val step2 = periphKx.processStep1(step1)
+        val step3 = centralKx.processStep2(step2)
+        val (step4, periphSession) = periphKx.processStep3(step3)
+        val centralSession = centralKx.finish(step4)
+
+        // Encrypt a message (counter=0)
+        val enc0 = centralSession.encrypt("msg0".toByteArray())
+        // First decrypt succeeds
+        periphSession.decrypt(enc0)
+        // Replay of counter-0 must fail
+        periphSession.decrypt(enc0)
+    }
+}
+
 class CentralPerformKeyExchangeTest {
     @Test
     fun testFullHandshake() = runBlocking {
