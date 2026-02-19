@@ -28,22 +28,26 @@ const val KEY_EXCHANGE_STEP3: Byte = 0x03
 const val KEY_EXCHANGE_STEP4: Byte = 0x04
 
 /** X25519 raw key prefix bytes for JCA encoding. */
-private val X25519_PKCS8_PREFIX = byteArrayOf(
-    0x30, 0x2E, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06,
-    0x03, 0x2B, 0x65, 0x6E, 0x04, 0x22, 0x04, 0x20,
-)
-private val X25519_X509_PREFIX = byteArrayOf(
-    0x30, 0x2A, 0x30, 0x05, 0x06, 0x03, 0x2B, 0x65,
-    0x6E, 0x03, 0x21, 0x00,
-)
-private val ED25519_PKCS8_PREFIX = byteArrayOf(
-    0x30, 0x2E, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06,
-    0x03, 0x2B, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20,
-)
-private val ED25519_X509_PREFIX = byteArrayOf(
-    0x30, 0x2A, 0x30, 0x05, 0x06, 0x03, 0x2B, 0x65,
-    0x70, 0x03, 0x21, 0x00,
-)
+private val X25519_PKCS8_PREFIX =
+    byteArrayOf(
+        0x30, 0x2E, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06,
+        0x03, 0x2B, 0x65, 0x6E, 0x04, 0x22, 0x04, 0x20,
+    )
+private val X25519_X509_PREFIX =
+    byteArrayOf(
+        0x30, 0x2A, 0x30, 0x05, 0x06, 0x03, 0x2B, 0x65,
+        0x6E, 0x03, 0x21, 0x00,
+    )
+private val ED25519_PKCS8_PREFIX =
+    byteArrayOf(
+        0x30, 0x2E, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06,
+        0x03, 0x2B, 0x65, 0x70, 0x04, 0x22, 0x04, 0x20,
+    )
+private val ED25519_X509_PREFIX =
+    byteArrayOf(
+        0x30, 0x2A, 0x30, 0x05, 0x06, 0x03, 0x2B, 0x65,
+        0x70, 0x03, 0x21, 0x00,
+    )
 
 object BlerpcCrypto {
     private val secureRandom = SecureRandom()
@@ -127,7 +131,10 @@ object BlerpcCrypto {
         }
     }
 
-    private fun buildNonce(counter: Int, direction: Byte): ByteArray {
+    private fun buildNonce(
+        counter: Int,
+        direction: Byte,
+    ): ByteArray {
         val nonce = ByteArray(12)
         nonce[0] = (counter and 0xFF).toByte()
         nonce[1] = ((counter shr 8) and 0xFF).toByte()
@@ -216,8 +223,7 @@ object BlerpcCrypto {
         return cipher.doFinal(ctAndTag)
     }
 
-    fun buildStep1Payload(centralX25519Pubkey: ByteArray): ByteArray =
-        byteArrayOf(KEY_EXCHANGE_STEP1) + centralX25519Pubkey
+    fun buildStep1Payload(centralX25519Pubkey: ByteArray): ByteArray = byteArrayOf(KEY_EXCHANGE_STEP1) + centralX25519Pubkey
 
     fun parseStep1Payload(data: ByteArray): ByteArray {
         require(data.size >= 33 && data[0] == KEY_EXCHANGE_STEP1) { "Invalid step 1 payload" }
@@ -243,16 +249,14 @@ object BlerpcCrypto {
         )
     }
 
-    fun buildStep3Payload(confirmationEncrypted: ByteArray): ByteArray =
-        byteArrayOf(KEY_EXCHANGE_STEP3) + confirmationEncrypted
+    fun buildStep3Payload(confirmationEncrypted: ByteArray): ByteArray = byteArrayOf(KEY_EXCHANGE_STEP3) + confirmationEncrypted
 
     fun parseStep3Payload(data: ByteArray): ByteArray {
         require(data.size >= 45 && data[0] == KEY_EXCHANGE_STEP3) { "Invalid step 3 payload" }
         return data.copyOfRange(1, 45)
     }
 
-    fun buildStep4Payload(confirmationEncrypted: ByteArray): ByteArray =
-        byteArrayOf(KEY_EXCHANGE_STEP4) + confirmationEncrypted
+    fun buildStep4Payload(confirmationEncrypted: ByteArray): ByteArray = byteArrayOf(KEY_EXCHANGE_STEP4) + confirmationEncrypted
 
     fun parseStep4Payload(data: ByteArray): ByteArray {
         require(data.size >= 45 && data[0] == KEY_EXCHANGE_STEP4) { "Invalid step 4 payload" }
