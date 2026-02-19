@@ -6,7 +6,6 @@ import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.SecureRandom
 import java.security.Signature
-import java.security.spec.NamedParameterSpec
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 import javax.crypto.Cipher
@@ -62,7 +61,10 @@ object BlerpcCrypto {
         return X25519KeyPair(privRaw, pubRaw)
     }
 
-    fun x25519SharedSecret(privateKeyRaw: ByteArray, peerPublicRaw: ByteArray): ByteArray {
+    fun x25519SharedSecret(
+        privateKeyRaw: ByteArray,
+        peerPublicRaw: ByteArray,
+    ): ByteArray {
         val kf = KeyFactory.getInstance("X25519")
         val privKey = kf.generatePrivate(PKCS8EncodedKeySpec(X25519_PKCS8_PREFIX + privateKeyRaw))
         val pubKey = kf.generatePublic(X509EncodedKeySpec(X25519_X509_PREFIX + peerPublicRaw))
@@ -96,7 +98,10 @@ object BlerpcCrypto {
         return Ed25519KeyPair(privRaw, pubRaw)
     }
 
-    fun ed25519Sign(privateKeyRaw: ByteArray, message: ByteArray): ByteArray {
+    fun ed25519Sign(
+        privateKeyRaw: ByteArray,
+        message: ByteArray,
+    ): ByteArray {
         val kf = KeyFactory.getInstance("Ed25519")
         val privKey = kf.generatePrivate(PKCS8EncodedKeySpec(ED25519_PKCS8_PREFIX + privateKeyRaw))
         val sig = Signature.getInstance("Ed25519")
@@ -105,7 +110,11 @@ object BlerpcCrypto {
         return sig.sign()
     }
 
-    fun ed25519Verify(publicKeyRaw: ByteArray, message: ByteArray, signature: ByteArray): Boolean {
+    fun ed25519Verify(
+        publicKeyRaw: ByteArray,
+        message: ByteArray,
+        signature: ByteArray,
+    ): Boolean {
         return try {
             val kf = KeyFactory.getInstance("Ed25519")
             val pubKey = kf.generatePublic(X509EncodedKeySpec(ED25519_X509_PREFIX + publicKeyRaw))
@@ -136,7 +145,11 @@ object BlerpcCrypto {
     ): ByteArray {
         val nonce = buildNonce(counter, direction)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(sessionKey, "AES"), GCMParameterSpec(128, nonce))
+        cipher.init(
+            Cipher.ENCRYPT_MODE,
+            SecretKeySpec(sessionKey, "AES"),
+            GCMParameterSpec(128, nonce),
+        )
         val ctAndTag = cipher.doFinal(plaintext)
 
         val out = ByteBuffer.allocate(4 + ctAndTag.size).order(ByteOrder.LITTLE_ENDIAN)
@@ -147,7 +160,11 @@ object BlerpcCrypto {
 
     data class DecryptedCommand(val counter: Int, val plaintext: ByteArray)
 
-    fun decryptCommand(sessionKey: ByteArray, direction: Byte, data: ByteArray): DecryptedCommand {
+    fun decryptCommand(
+        sessionKey: ByteArray,
+        direction: Byte,
+        data: ByteArray,
+    ): DecryptedCommand {
         require(data.size >= 20) { "Encrypted payload too short: ${data.size}" }
 
         val buf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
@@ -156,28 +173,46 @@ object BlerpcCrypto {
 
         val nonce = buildNonce(counter, direction)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(sessionKey, "AES"), GCMParameterSpec(128, nonce))
+        cipher.init(
+            Cipher.DECRYPT_MODE,
+            SecretKeySpec(sessionKey, "AES"),
+            GCMParameterSpec(128, nonce),
+        )
         val plaintext = cipher.doFinal(ctAndTag)
         return DecryptedCommand(counter, plaintext)
     }
 
-    fun encryptConfirmation(sessionKey: ByteArray, message: ByteArray): ByteArray {
+    fun encryptConfirmation(
+        sessionKey: ByteArray,
+        message: ByteArray,
+    ): ByteArray {
         val nonce = ByteArray(12)
         secureRandom.nextBytes(nonce)
 
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(sessionKey, "AES"), GCMParameterSpec(128, nonce))
+        cipher.init(
+            Cipher.ENCRYPT_MODE,
+            SecretKeySpec(sessionKey, "AES"),
+            GCMParameterSpec(128, nonce),
+        )
         val ctAndTag = cipher.doFinal(message)
         return nonce + ctAndTag
     }
 
-    fun decryptConfirmation(sessionKey: ByteArray, data: ByteArray): ByteArray {
+    fun decryptConfirmation(
+        sessionKey: ByteArray,
+        data: ByteArray,
+    ): ByteArray {
         require(data.size >= 44) { "Confirmation too short: ${data.size}" }
         val nonce = data.copyOfRange(0, 12)
         val ctAndTag = data.copyOfRange(12, data.size)
 
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(sessionKey, "AES"), GCMParameterSpec(128, nonce))
+        cipher.init(
+            Cipher.DECRYPT_MODE,
+            SecretKeySpec(sessionKey, "AES"),
+            GCMParameterSpec(128, nonce),
+        )
         return cipher.doFinal(ctAndTag)
     }
 
@@ -194,7 +229,10 @@ object BlerpcCrypto {
         ed25519Signature: ByteArray,
         peripheralEd25519Pubkey: ByteArray,
     ): ByteArray =
-        byteArrayOf(KEY_EXCHANGE_STEP2) + peripheralX25519Pubkey + ed25519Signature + peripheralEd25519Pubkey
+        byteArrayOf(KEY_EXCHANGE_STEP2) +
+            peripheralX25519Pubkey +
+            ed25519Signature +
+            peripheralEd25519Pubkey
 
     fun parseStep2Payload(data: ByteArray): Triple<ByteArray, ByteArray, ByteArray> {
         require(data.size >= 129 && data[0] == KEY_EXCHANGE_STEP2) { "Invalid step 2 payload" }
@@ -222,7 +260,12 @@ object BlerpcCrypto {
     }
 
     /** HKDF-SHA256 implementation. */
-    private fun hkdfSha256(ikm: ByteArray, salt: ByteArray, info: ByteArray, length: Int): ByteArray {
+    private fun hkdfSha256(
+        ikm: ByteArray,
+        salt: ByteArray,
+        info: ByteArray,
+        length: Int,
+    ): ByteArray {
         val mac = javax.crypto.Mac.getInstance("HmacSHA256")
 
         // Extract
