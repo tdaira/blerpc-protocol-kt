@@ -44,7 +44,11 @@ class ControlContainersTest {
         val c = makeCapabilitiesRequest(transactionId = 7)
         assertEquals(ContainerType.CONTROL, c.containerType)
         assertEquals(ControlCmd.CAPABILITIES, c.controlCmd)
-        assertEquals(0, c.payload.size)
+        assertEquals(6, c.payload.size)
+        val buf = ByteBuffer.wrap(c.payload).order(ByteOrder.LITTLE_ENDIAN)
+        assertEquals(0, buf.short.toInt() and 0xFFFF)
+        assertEquals(0, buf.short.toInt() and 0xFFFF)
+        assertEquals(0, buf.short.toInt() and 0xFFFF)
     }
 
     @Test
@@ -57,10 +61,27 @@ class ControlContainersTest {
             )
         assertEquals(ContainerType.CONTROL, c.containerType)
         assertEquals(ControlCmd.CAPABILITIES, c.controlCmd)
-        assertEquals(4, c.payload.size)
+        assertEquals(6, c.payload.size)
         val buf = ByteBuffer.wrap(c.payload).order(ByteOrder.LITTLE_ENDIAN)
         assertEquals(256, buf.short.toInt() and 0xFFFF)
         assertEquals(65535, buf.short.toInt() and 0xFFFF)
+        assertEquals(0, buf.short.toInt() and 0xFFFF)
+    }
+
+    @Test
+    fun capabilitiesResponseWithFlags() {
+        val c =
+            makeCapabilitiesResponse(
+                transactionId = 7,
+                maxRequestPayloadSize = 256,
+                maxResponsePayloadSize = 65535,
+                flags = 1,
+            )
+        assertEquals(6, c.payload.size)
+        val buf = ByteBuffer.wrap(c.payload).order(ByteOrder.LITTLE_ENDIAN)
+        assertEquals(256, buf.short.toInt() and 0xFFFF)
+        assertEquals(65535, buf.short.toInt() and 0xFFFF)
+        assertEquals(1, buf.short.toInt() and 0xFFFF)
     }
 
     @Test
