@@ -39,6 +39,12 @@ private val X25519_X509_PREFIX =
         0x6E, 0x03, 0x21, 0x00,
     )
 
+/**
+ * Cryptographic operations for bleRPC E2E encryption.
+ *
+ * Provides X25519 key agreement, Ed25519 signing/verification,
+ * AES-128-GCM encryption, and HKDF-SHA256 key derivation.
+ */
 object BlerpcCrypto {
     private val secureRandom = SecureRandom()
 
@@ -47,6 +53,7 @@ object BlerpcCrypto {
         val publicKeyRaw: ByteArray,
     )
 
+    /** Generate an X25519 key pair for ECDH key agreement. */
     fun generateX25519KeyPair(): X25519KeyPair {
         val kpg = KeyPairGenerator.getInstance("X25519")
         val kp = kpg.generateKeyPair()
@@ -55,6 +62,7 @@ object BlerpcCrypto {
         return X25519KeyPair(privRaw, pubRaw)
     }
 
+    /** Compute X25519 shared secret (32 bytes). */
     fun x25519SharedSecret(
         privateKeyRaw: ByteArray,
         peerPublicRaw: ByteArray,
@@ -69,6 +77,11 @@ object BlerpcCrypto {
         return ka.generateSecret()
     }
 
+    /**
+     * Derive 16-byte AES-128 session key using HKDF-SHA256.
+     *
+     * Salt is `centralPubkey || peripheralPubkey`, info is `"blerpc-session-key"`.
+     */
     fun deriveSessionKey(
         sharedSecret: ByteArray,
         centralPubkey: ByteArray,
@@ -84,6 +97,7 @@ object BlerpcCrypto {
         val publicKeyRaw: ByteArray,
     )
 
+    /** Generate an Ed25519 key pair for digital signatures. */
     fun generateEd25519KeyPair(): Ed25519KeyPair {
         val seed = ByteArray(Ed25519.SECRET_KEY_SIZE)
         secureRandom.nextBytes(seed)
@@ -92,6 +106,7 @@ object BlerpcCrypto {
         return Ed25519KeyPair(seed, pubRaw)
     }
 
+    /** Sign [message] with Ed25519, returning a 64-byte signature. */
     fun ed25519Sign(
         privateKeyRaw: ByteArray,
         message: ByteArray,
@@ -101,6 +116,7 @@ object BlerpcCrypto {
         return sig
     }
 
+    /** Verify an Ed25519 [signature] over [message]. Returns true if valid. */
     fun ed25519Verify(
         publicKeyRaw: ByteArray,
         message: ByteArray,
@@ -126,6 +142,11 @@ object BlerpcCrypto {
         return nonce
     }
 
+    /**
+     * Encrypt a command payload with AES-128-GCM.
+     *
+     * Output format: `[counter:4B LE][ciphertext:NB][tag:16B]`.
+     */
     fun encryptCommand(
         sessionKey: ByteArray,
         counter: Int,
@@ -149,6 +170,7 @@ object BlerpcCrypto {
 
     data class DecryptedCommand(val counter: Int, val plaintext: ByteArray)
 
+    /** Decrypt a command payload with AES-128-GCM. */
     fun decryptCommand(
         sessionKey: ByteArray,
         direction: Byte,
@@ -171,6 +193,7 @@ object BlerpcCrypto {
         return DecryptedCommand(counter, plaintext)
     }
 
+    /** Encrypt a confirmation message for key exchange step 3/4. */
     fun encryptConfirmation(
         sessionKey: ByteArray,
         message: ByteArray,
@@ -188,6 +211,7 @@ object BlerpcCrypto {
         return nonce + ctAndTag
     }
 
+    /** Decrypt a confirmation message from key exchange step 3/4. */
     fun decryptConfirmation(
         sessionKey: ByteArray,
         data: ByteArray,
@@ -275,6 +299,14 @@ object BlerpcCrypto {
     }
 }
 
+/**
+ * Stateful encryption/decryption session established after key exchange.
+ *
+ * Tracks send/receive counters and provides replay protection.
+ *
+ * @param sessionKey The 16-byte AES-128 session key.
+ * @param isCentral True if this is the central side of the connection.
+ */
 class BlerpcCryptoSession(
     sessionKey: ByteArray,
     isCentral: Boolean,
@@ -286,12 +318,14 @@ class BlerpcCryptoSession(
     private val txDirection: Byte = if (isCentral) DIRECTION_C2P else DIRECTION_P2C
     private val rxDirection: Byte = if (isCentral) DIRECTION_P2C else DIRECTION_C2P
 
+    /** Encrypt [plaintext] and advance the send counter. */
     fun encrypt(plaintext: ByteArray): ByteArray {
         val result = BlerpcCrypto.encryptCommand(sessionKey, txCounter, txDirection, plaintext)
         txCounter++
         return result
     }
 
+    /** Decrypt [data] with replay protection. Throws on replay or auth failure. */
     fun decrypt(data: ByteArray): ByteArray {
         val (counter, plaintext) = BlerpcCrypto.decryptCommand(sessionKey, rxDirection, data)
         if (rxFirstDone) {
@@ -303,11 +337,18 @@ class BlerpcCryptoSession(
     }
 }
 
+/**
+ * Central-side key exchange state machine.
+ *
+ * Usage: [start] → send step 1 → receive step 2 → [processStep2] →
+ * send step 3 → receive step 4 → [finish] → [BlerpcCryptoSession].
+ */
 class CentralKeyExchange {
     private var x25519PrivKey: ByteArray? = null
     private var x25519PubKey: ByteArray? = null
     private var sessionKey: ByteArray? = null
 
+    /** Generate an ephemeral X25519 key pair and return the step 1 payload. */
     fun start(): ByteArray {
         val keyPair = BlerpcCrypto.generateX25519KeyPair()
         x25519PrivKey = keyPair.privateKeyRaw
@@ -315,6 +356,12 @@ class CentralKeyExchange {
         return BlerpcCrypto.buildStep1Payload(x25519PubKey!!)
     }
 
+    /**
+     * Process step 2 from peripheral: verify signature, derive session key,
+     * and produce step 3 payload with encrypted confirmation.
+     *
+     * @param verifyKeyCb Optional callback to verify the peripheral's Ed25519 public key (TOFU).
+     */
     fun processStep2(
         step2Payload: ByteArray,
         verifyKeyCb: ((ByteArray) -> Boolean)? = null,
@@ -338,6 +385,7 @@ class CentralKeyExchange {
         return BlerpcCrypto.buildStep3Payload(encryptedConfirm)
     }
 
+    /** Process step 4 from peripheral, verify confirmation, and return the session. */
     fun finish(step4Payload: ByteArray): BlerpcCryptoSession {
         val encryptedPeriph = BlerpcCrypto.parseStep4Payload(step4Payload)
         val plaintext = BlerpcCrypto.decryptConfirmation(sessionKey!!, encryptedPeriph)
@@ -346,6 +394,12 @@ class CentralKeyExchange {
     }
 }
 
+/**
+ * Peripheral-side key exchange state machine.
+ *
+ * Use [handleStep] for automatic step dispatching, or call
+ * [processStep1] and [processStep3] directly.
+ */
 class PeripheralKeyExchange(
     private val x25519PrivKey: ByteArray,
     private val x25519PubKey: ByteArray,
@@ -354,6 +408,7 @@ class PeripheralKeyExchange(
 ) {
     private var sessionKey: ByteArray? = null
 
+    /** Process step 1 from central: sign, derive session key, and produce step 2 payload. */
     fun processStep1(step1Payload: ByteArray): ByteArray {
         val centralX25519Pubkey = BlerpcCrypto.parseStep1Payload(step1Payload)
 
@@ -366,6 +421,7 @@ class PeripheralKeyExchange(
         return BlerpcCrypto.buildStep2Payload(x25519PubKey, signature, ed25519PubKey)
     }
 
+    /** Process step 3 from central: verify confirmation, produce step 4 + session. */
     fun processStep3(step3Payload: ByteArray): Pair<ByteArray, BlerpcCryptoSession> {
         val encrypted = BlerpcCrypto.parseStep3Payload(step3Payload)
         val plaintext = BlerpcCrypto.decryptConfirmation(sessionKey!!, encrypted)
@@ -378,6 +434,11 @@ class PeripheralKeyExchange(
         return Pair(step4, session)
     }
 
+    /**
+     * Handle a single key exchange step, dispatching to [processStep1] or [processStep3].
+     *
+     * @return Pair of (response payload, session or null if not yet established).
+     */
     fun handleStep(payload: ByteArray): Pair<ByteArray, BlerpcCryptoSession?> {
         require(payload.isNotEmpty()) { "Empty key exchange payload" }
         return when (payload[0]) {
@@ -393,6 +454,14 @@ class PeripheralKeyExchange(
     }
 }
 
+/**
+ * Perform the complete 4-step central key exchange using send/receive callbacks.
+ *
+ * @param send Callback to send a key exchange payload over BLE.
+ * @param receive Callback to receive a key exchange payload from BLE.
+ * @param verifyKeyCb Optional callback to verify the peripheral's Ed25519 public key.
+ * @return An established [BlerpcCryptoSession] ready for encryption/decryption.
+ */
 suspend fun centralPerformKeyExchange(
     send: suspend (ByteArray) -> Unit,
     receive: suspend () -> ByteArray,

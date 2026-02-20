@@ -3,6 +3,7 @@ package com.blerpc.protocol
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
+/** Create a timeout request control container. */
 fun makeTimeoutRequest(
     transactionId: Int,
     sequenceNumber: Int = 0,
@@ -15,6 +16,7 @@ fun makeTimeoutRequest(
         payload = ByteArray(0),
     )
 
+/** Create a timeout response control container with [timeoutMs] in milliseconds. */
 fun makeTimeoutResponse(
     transactionId: Int,
     timeoutMs: Int,
@@ -30,6 +32,7 @@ fun makeTimeoutResponse(
     )
 }
 
+/** Create a stream-end control container (central to peripheral direction). */
 fun makeStreamEndC2P(
     transactionId: Int,
     sequenceNumber: Int = 0,
@@ -42,6 +45,7 @@ fun makeStreamEndC2P(
         payload = ByteArray(0),
     )
 
+/** Create a stream-end control container (peripheral to central direction). */
 fun makeStreamEndP2C(
     transactionId: Int,
     sequenceNumber: Int = 0,
@@ -54,6 +58,7 @@ fun makeStreamEndP2C(
         payload = ByteArray(0),
     )
 
+/** Create a capabilities request control container. */
 fun makeCapabilitiesRequest(
     transactionId: Int,
     maxRequestPayloadSize: Int = 0,
@@ -76,6 +81,7 @@ fun makeCapabilitiesRequest(
     )
 }
 
+/** Create a capabilities response control container. */
 fun makeCapabilitiesResponse(
     transactionId: Int,
     maxRequestPayloadSize: Int,
@@ -98,6 +104,7 @@ fun makeCapabilitiesResponse(
     )
 }
 
+/** Create an error response control container with the given [errorCode]. */
 fun makeErrorResponse(
     transactionId: Int,
     errorCode: Int,
@@ -111,6 +118,7 @@ fun makeErrorResponse(
         payload = byteArrayOf(errorCode.toByte()),
     )
 
+/** Create a key exchange control container with the given [payload]. */
 fun makeKeyExchange(
     transactionId: Int,
     payload: ByteArray,

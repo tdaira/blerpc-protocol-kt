@@ -3,6 +3,7 @@ package com.blerpc.protocol
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
+/** Command type: REQUEST from central or RESPONSE from peripheral. */
 enum class CommandType(val value: Int) {
     REQUEST(0),
     RESPONSE(1),
@@ -13,11 +14,18 @@ enum class CommandType(val value: Int) {
     }
 }
 
+/**
+ * A bleRPC command packet with a type, command name, and protobuf data.
+ *
+ * Command packets are the application-level messages that ride inside
+ * the container layer's reassembled payloads.
+ */
 data class CommandPacket(
     val cmdType: CommandType,
     val cmdName: String,
     val data: ByteArray = ByteArray(0),
 ) {
+    /** Serialize this command packet to its binary wire format. */
     fun serialize(): ByteArray {
         val nameBytes = cmdName.toByteArray(Charsets.US_ASCII)
         require(nameBytes.size <= 255) { "cmd_name too long: ${nameBytes.size} > 255" }
@@ -49,6 +57,7 @@ data class CommandPacket(
     }
 
     companion object {
+        /** Deserialize a command packet from its binary wire format. */
         fun deserialize(data: ByteArray): CommandPacket {
             require(data.size >= 2) { "Command packet too short: ${data.size} bytes" }
 

@@ -1,16 +1,28 @@
 package com.blerpc.protocol
 
+/**
+ * Splits a payload into MTU-sized containers for BLE transmission.
+ *
+ * @param mtu The negotiated BLE ATT MTU (default 247).
+ */
 class ContainerSplitter(private val mtu: Int = 247) {
     private var transactionCounter = 0
 
     val effectiveMtu: Int get() = mtu - ATT_OVERHEAD
 
+    /** Return the next transaction ID (0-255, wrapping). */
     fun nextTransactionId(): Int {
         val tid = transactionCounter
         transactionCounter = (transactionCounter + 1) and 0xFF
         return tid
     }
 
+    /**
+     * Split [payload] into a list of containers that each fit within the MTU.
+     *
+     * @param transactionId Optional transaction ID; auto-generated if null.
+     * @return Ordered list of FIRST + SUBSEQUENT containers.
+     */
     fun split(
         payload: ByteArray,
         transactionId: Int? = null,

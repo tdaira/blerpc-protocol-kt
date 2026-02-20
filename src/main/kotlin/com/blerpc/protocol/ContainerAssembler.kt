@@ -1,8 +1,19 @@
 package com.blerpc.protocol
 
+/**
+ * Reassembles fragmented containers back into complete payloads.
+ *
+ * Feed incoming containers via [feed]; when all fragments of a transaction
+ * have arrived, the complete payload is returned.
+ */
 class ContainerAssembler {
     private val transactions = mutableMapOf<Int, AssemblyState>()
 
+    /**
+     * Feed a received container into the assembler.
+     *
+     * @return The complete reassembled payload when all fragments have arrived, or null.
+     */
     fun feed(container: Container): ByteArray? {
         if (container.containerType == ContainerType.CONTROL) {
             return null
@@ -46,6 +57,7 @@ class ContainerAssembler {
         return null
     }
 
+    /** Clear all in-progress assembly state. */
     fun reset() {
         transactions.clear()
     }

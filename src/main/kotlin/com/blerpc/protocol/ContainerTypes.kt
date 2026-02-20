@@ -1,5 +1,6 @@
 package com.blerpc.protocol
 
+/** Container type encoded in bits 7-6 of the flags byte. */
 enum class ContainerType(val value: Int) {
     FIRST(0x00),
     SUBSEQUENT(0x01),
@@ -11,6 +12,7 @@ enum class ContainerType(val value: Int) {
     }
 }
 
+/** Control command encoded in bits 5-2 of the flags byte. */
 enum class ControlCmd(val value: Int) {
     NONE(0x00),
     TIMEOUT(0x01),

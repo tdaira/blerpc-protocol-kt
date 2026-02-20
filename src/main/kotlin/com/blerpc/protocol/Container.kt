@@ -3,6 +3,13 @@ package com.blerpc.protocol
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
+/**
+ * A bleRPC container representing a single BLE notification/write.
+ *
+ * Containers are the lowest-level wire unit. A FIRST container carries
+ * the total payload length; SUBSEQUENT containers carry continuation
+ * fragments; CONTROL containers carry protocol-level messages.
+ */
 data class Container(
     val transactionId: Int,
     val sequenceNumber: Int,
@@ -11,6 +18,7 @@ data class Container(
     val totalLength: Int = 0,
     val payload: ByteArray = ByteArray(0),
 ) {
+    /** Serialize this container to its binary wire format. */
     fun serialize(): ByteArray {
         val flags = ((containerType.value and 0x03) shl 6) or ((controlCmd.value and 0x0F) shl 2)
 
@@ -60,6 +68,7 @@ data class Container(
     }
 
     companion object {
+        /** Deserialize a container from its binary wire format. */
         fun deserialize(data: ByteArray): Container {
             if (data.size < 4) {
                 throw IllegalArgumentException("Container too short: ${data.size} bytes")
