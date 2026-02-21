@@ -9,9 +9,8 @@ import org.junit.Test
 
 class PeripheralHandleStepTest {
     private fun makePeripheralKx(): PeripheralKeyExchange {
-        val x = BlerpcCrypto.generateX25519KeyPair()
         val ed = BlerpcCrypto.generateEd25519KeyPair()
-        return PeripheralKeyExchange(x.privateKeyRaw, x.publicKeyRaw, ed.privateKeyRaw, ed.publicKeyRaw)
+        return PeripheralKeyExchange(ed.privateKeyRaw)
     }
 
     @Test
@@ -59,9 +58,8 @@ class PeripheralHandleStepTest {
 class CounterZeroReplayTest {
     @Test(expected = IllegalArgumentException::class)
     fun testCounterZeroReplayAttack() {
-        val x = BlerpcCrypto.generateX25519KeyPair()
         val ed = BlerpcCrypto.generateEd25519KeyPair()
-        val periphKx = PeripheralKeyExchange(x.privateKeyRaw, x.publicKeyRaw, ed.privateKeyRaw, ed.publicKeyRaw)
+        val periphKx = PeripheralKeyExchange(ed.privateKeyRaw)
 
         val centralKx = CentralKeyExchange()
         val step1 = centralKx.start()
@@ -83,9 +81,8 @@ class CentralPerformKeyExchangeTest {
     @Test
     fun testFullHandshake() =
         runBlocking {
-            val x = BlerpcCrypto.generateX25519KeyPair()
             val ed = BlerpcCrypto.generateEd25519KeyPair()
-            val periphKx = PeripheralKeyExchange(x.privateKeyRaw, x.publicKeyRaw, ed.privateKeyRaw, ed.publicKeyRaw)
+            val periphKx = PeripheralKeyExchange(ed.privateKeyRaw)
 
             val payloads = mutableListOf<ByteArray>()
             var periphSession: BlerpcCryptoSession? = null
@@ -112,9 +109,8 @@ class CentralPerformKeyExchangeTest {
     @Test(expected = IllegalArgumentException::class)
     fun testVerifyCbReject(): Unit =
         runBlocking {
-            val x = BlerpcCrypto.generateX25519KeyPair()
             val ed = BlerpcCrypto.generateEd25519KeyPair()
-            val periphKx = PeripheralKeyExchange(x.privateKeyRaw, x.publicKeyRaw, ed.privateKeyRaw, ed.publicKeyRaw)
+            val periphKx = PeripheralKeyExchange(ed.privateKeyRaw)
 
             val payloads = mutableListOf<ByteArray>()
 
@@ -131,9 +127,8 @@ class CentralPerformKeyExchangeTest {
     @Test
     fun testVerifyCbAccept() =
         runBlocking {
-            val x = BlerpcCrypto.generateX25519KeyPair()
             val ed = BlerpcCrypto.generateEd25519KeyPair()
-            val periphKx = PeripheralKeyExchange(x.privateKeyRaw, x.publicKeyRaw, ed.privateKeyRaw, ed.publicKeyRaw)
+            val periphKx = PeripheralKeyExchange(ed.privateKeyRaw)
 
             val payloads = mutableListOf<ByteArray>()
             val seenKeys = mutableListOf<ByteArray>()

@@ -101,9 +101,17 @@ object BlerpcCrypto {
     fun generateEd25519KeyPair(): Ed25519KeyPair {
         val seed = ByteArray(Ed25519.SECRET_KEY_SIZE)
         secureRandom.nextBytes(seed)
+        return ed25519KeyPairFromSeed(seed)
+    }
+
+    /** Create an Ed25519 key pair from a raw 32-byte seed (private key). */
+    fun ed25519KeyPairFromSeed(seed: ByteArray): Ed25519KeyPair {
+        require(seed.size == Ed25519.SECRET_KEY_SIZE) {
+            "Ed25519 seed must be ${Ed25519.SECRET_KEY_SIZE} bytes, got ${seed.size}"
+        }
         val pubRaw = ByteArray(Ed25519.PUBLIC_KEY_SIZE)
         Ed25519.generatePublicKey(seed, 0, pubRaw, 0)
-        return Ed25519KeyPair(seed, pubRaw)
+        return Ed25519KeyPair(seed.copyOf(), pubRaw)
     }
 
     /** Sign [message] with Ed25519, returning a 64-byte signature. */
@@ -401,24 +409,33 @@ class CentralKeyExchange {
  * [processStep1] and [processStep3] directly.
  */
 class PeripheralKeyExchange(
-    private val x25519PrivKey: ByteArray,
-    private val x25519PubKey: ByteArray,
-    private val ed25519PrivKey: ByteArray,
-    private val ed25519PubKey: ByteArray,
+    private val ed25519Seed: ByteArray,
 ) {
+    private val ed25519PubKey: ByteArray
     private var sessionKey: ByteArray? = null
 
-    /** Process step 1 from central: sign, derive session key, and produce step 2 payload. */
+    init {
+        val kp = BlerpcCrypto.ed25519KeyPairFromSeed(ed25519Seed)
+        ed25519PubKey = kp.publicKeyRaw
+    }
+
+    /**
+     * Process step 1 from central: generate ephemeral X25519 keypair,
+     * sign, derive session key, and produce step 2 payload.
+     */
     fun processStep1(step1Payload: ByteArray): ByteArray {
         val centralX25519Pubkey = BlerpcCrypto.parseStep1Payload(step1Payload)
 
-        val signMsg = centralX25519Pubkey + x25519PubKey
-        val signature = BlerpcCrypto.ed25519Sign(ed25519PrivKey, signMsg)
+        // Generate ephemeral X25519 keypair (forward secrecy)
+        val x25519Kp = BlerpcCrypto.generateX25519KeyPair()
 
-        val sharedSecret = BlerpcCrypto.x25519SharedSecret(x25519PrivKey, centralX25519Pubkey)
-        sessionKey = BlerpcCrypto.deriveSessionKey(sharedSecret, centralX25519Pubkey, x25519PubKey)
+        val signMsg = centralX25519Pubkey + x25519Kp.publicKeyRaw
+        val signature = BlerpcCrypto.ed25519Sign(ed25519Seed, signMsg)
 
-        return BlerpcCrypto.buildStep2Payload(x25519PubKey, signature, ed25519PubKey)
+        val sharedSecret = BlerpcCrypto.x25519SharedSecret(x25519Kp.privateKeyRaw, centralX25519Pubkey)
+        sessionKey = BlerpcCrypto.deriveSessionKey(sharedSecret, centralX25519Pubkey, x25519Kp.publicKeyRaw)
+
+        return BlerpcCrypto.buildStep2Payload(x25519Kp.publicKeyRaw, signature, ed25519PubKey)
     }
 
     /** Process step 3 from central: verify confirmation, produce step 4 + session. */
