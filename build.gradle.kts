@@ -13,7 +13,7 @@ ktlint {
 }
 
 group = "com.blerpc"
-version = "0.4.0"
+version = "0.5.0"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
