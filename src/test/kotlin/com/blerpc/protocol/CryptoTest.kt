@@ -217,10 +217,10 @@ class CryptoSessionCounterOverflowTest {
     fun testEncryptAtMaxCounterThrows() {
         val key = ByteArray(16) { 0x01 }
         val session = BlerpcCryptoSession(key, isCentral = true)
-        // Use reflection to set txCounter to Int.MAX_VALUE
+        // Use reflection to set txCounter to 0xFFFFFFFFL (max unsigned 32-bit)
         val field = BlerpcCryptoSession::class.java.getDeclaredField("txCounter")
         field.isAccessible = true
-        field.setInt(session, Int.MAX_VALUE)
+        field.setLong(session, 0xFFFFFFFFL)
         session.encrypt(byteArrayOf(0x01, 0x02))
     }
 }

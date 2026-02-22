@@ -138,14 +138,14 @@ object BlerpcCrypto {
     }
 
     private fun buildNonce(
-        counter: Int,
+        counter: Long,
         direction: Byte,
     ): ByteArray {
         val nonce = ByteArray(12)
-        nonce[0] = (counter and 0xFF).toByte()
-        nonce[1] = ((counter shr 8) and 0xFF).toByte()
-        nonce[2] = ((counter shr 16) and 0xFF).toByte()
-        nonce[3] = ((counter shr 24) and 0xFF).toByte()
+        nonce[0] = (counter.toInt() and 0xFF).toByte()
+        nonce[1] = ((counter.toInt() shr 8) and 0xFF).toByte()
+        nonce[2] = ((counter.toInt() shr 16) and 0xFF).toByte()
+        nonce[3] = ((counter.toInt() shr 24) and 0xFF).toByte()
         nonce[4] = direction
         return nonce
     }
@@ -157,7 +157,7 @@ object BlerpcCrypto {
      */
     fun encryptCommand(
         sessionKey: ByteArray,
-        counter: Int,
+        counter: Long,
         direction: Byte,
         plaintext: ByteArray,
     ): ByteArray {
@@ -171,12 +171,12 @@ object BlerpcCrypto {
         val ctAndTag = cipher.doFinal(plaintext)
 
         val out = ByteBuffer.allocate(4 + ctAndTag.size).order(ByteOrder.LITTLE_ENDIAN)
-        out.putInt(counter)
+        out.putInt(counter.toInt())
         out.put(ctAndTag)
         return out.array()
     }
 
-    data class DecryptedCommand(val counter: Int, val plaintext: ByteArray)
+    data class DecryptedCommand(val counter: Long, val plaintext: ByteArray)
 
     /** Decrypt a command payload with AES-128-GCM. */
     fun decryptCommand(
@@ -187,7 +187,7 @@ object BlerpcCrypto {
         require(data.size >= 20) { "Encrypted payload too short: ${data.size}" }
 
         val buf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
-        val counter = buf.int
+        val counter = buf.int.toLong() and 0xFFFFFFFFL
         val ctAndTag = data.copyOfRange(4, data.size)
 
         val nonce = buildNonce(counter, direction)
@@ -320,15 +320,15 @@ class BlerpcCryptoSession(
     isCentral: Boolean,
 ) {
     private val sessionKey = sessionKey.copyOf()
-    private var txCounter = 0
-    private var rxCounter = 0
+    private var txCounter = 0L
+    private var rxCounter = 0L
     private var rxFirstDone = false
     private val txDirection: Byte = if (isCentral) DIRECTION_C2P else DIRECTION_P2C
     private val rxDirection: Byte = if (isCentral) DIRECTION_P2C else DIRECTION_C2P
 
     /** Encrypt [plaintext] and advance the send counter. */
     fun encrypt(plaintext: ByteArray): ByteArray = synchronized(this) {
-        check(txCounter >= 0 && txCounter < Int.MAX_VALUE) { "TX counter overflow: session must be rekeyed" }
+        check(txCounter in 0L until 0xFFFFFFFFL) { "TX counter overflow: session must be rekeyed" }
         val result = BlerpcCrypto.encryptCommand(sessionKey, txCounter, txDirection, plaintext)
         txCounter++
         result

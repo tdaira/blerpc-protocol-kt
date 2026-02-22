@@ -29,7 +29,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.blerpc:blerpc-protocol-kt:0.5.0")
+    implementation("com.blerpc:blerpc-protocol-kt:0.6.0")
 }
 ```
 
