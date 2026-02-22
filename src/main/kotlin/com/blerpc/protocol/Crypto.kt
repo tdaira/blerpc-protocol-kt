@@ -327,23 +327,25 @@ class BlerpcCryptoSession(
     private val rxDirection: Byte = if (isCentral) DIRECTION_P2C else DIRECTION_C2P
 
     /** Encrypt [plaintext] and advance the send counter. */
-    fun encrypt(plaintext: ByteArray): ByteArray = synchronized(this) {
-        check(txCounter in 0L until 0xFFFFFFFFL) { "TX counter overflow: session must be rekeyed" }
-        val result = BlerpcCrypto.encryptCommand(sessionKey, txCounter, txDirection, plaintext)
-        txCounter++
-        result
-    }
+    fun encrypt(plaintext: ByteArray): ByteArray =
+        synchronized(this) {
+            check(txCounter in 0L until 0xFFFFFFFFL) { "TX counter overflow: session must be rekeyed" }
+            val result = BlerpcCrypto.encryptCommand(sessionKey, txCounter, txDirection, plaintext)
+            txCounter++
+            result
+        }
 
     /** Decrypt [data] with replay protection. Throws on replay or auth failure. */
-    fun decrypt(data: ByteArray): ByteArray = synchronized(this) {
-        val (counter, plaintext) = BlerpcCrypto.decryptCommand(sessionKey, rxDirection, data)
-        if (rxFirstDone) {
-            require(counter > rxCounter) { "Replay detected" }
+    fun decrypt(data: ByteArray): ByteArray =
+        synchronized(this) {
+            val (counter, plaintext) = BlerpcCrypto.decryptCommand(sessionKey, rxDirection, data)
+            if (rxFirstDone) {
+                require(counter > rxCounter) { "Replay detected" }
+            }
+            rxCounter = counter
+            rxFirstDone = true
+            plaintext
         }
-        rxCounter = counter
-        rxFirstDone = true
-        plaintext
-    }
 }
 
 /**

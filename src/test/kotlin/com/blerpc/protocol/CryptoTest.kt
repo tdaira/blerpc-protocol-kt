@@ -233,20 +233,24 @@ class CryptoSessionThreadSafetyTest {
         val results = java.util.Collections.synchronizedList(mutableListOf<Int>())
         val errors = java.util.Collections.synchronizedList(mutableListOf<Exception>())
 
-        val threads = (0 until 4).map {
-            Thread {
-                repeat(50) {
-                    try {
-                        val enc = session.encrypt(byteArrayOf(0x42))
-                        val counter = java.nio.ByteBuffer.wrap(enc, 0, 4)
-                            .order(java.nio.ByteOrder.LITTLE_ENDIAN).int
-                        results.add(counter)
-                    } catch (e: Exception) {
-                        errors.add(e)
+        val threads =
+            (0 until 4).map {
+                Thread {
+                    repeat(50) {
+                        try {
+                            val enc = session.encrypt(byteArrayOf(0x42))
+                            val counter =
+                                java.nio.ByteBuffer
+                                    .wrap(enc, 0, 4)
+                                    .order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                                    .int
+                            results.add(counter)
+                        } catch (e: Exception) {
+                            errors.add(e)
+                        }
                     }
                 }
             }
-        }
 
         threads.forEach { it.start() }
         threads.forEach { it.join() }
