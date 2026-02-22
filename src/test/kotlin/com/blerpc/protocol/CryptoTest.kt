@@ -151,3 +151,108 @@ class CentralPerformKeyExchangeTest {
             assertArrayEquals(ed.publicKeyRaw, seenKeys[0])
         }
 }
+
+class KeyExchangeStateValidationTest {
+    @Test(expected = IllegalStateException::class)
+    fun testCentralProcessStep2BeforeStartThrows() {
+        val kx = CentralKeyExchange()
+        kx.processStep2(byteArrayOf(KEY_EXCHANGE_STEP2) + ByteArray(128))
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun testCentralFinishBeforeProcessStep2Throws() {
+        val kx = CentralKeyExchange()
+        kx.start()
+        kx.finish(byteArrayOf(KEY_EXCHANGE_STEP4) + ByteArray(44))
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun testCentralDoubleStartThrows() {
+        val kx = CentralKeyExchange()
+        kx.start()
+        kx.start()
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun testPeripheralProcessStep3BeforeStep1Throws() {
+        val ed = BlerpcCrypto.generateEd25519KeyPair()
+        val kx = PeripheralKeyExchange(ed.privateKeyRaw)
+        kx.processStep3(byteArrayOf(KEY_EXCHANGE_STEP3) + ByteArray(44))
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun testPeripheralHandleStep3BeforeStep1Throws() {
+        val ed = BlerpcCrypto.generateEd25519KeyPair()
+        val kx = PeripheralKeyExchange(ed.privateKeyRaw)
+        kx.handleStep(byteArrayOf(KEY_EXCHANGE_STEP3) + ByteArray(44))
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun testPeripheralDoubleStep1Throws() {
+        val ed = BlerpcCrypto.generateEd25519KeyPair()
+        val kx = PeripheralKeyExchange(ed.privateKeyRaw)
+        val centralKx = CentralKeyExchange()
+        val step1 = centralKx.start()
+        kx.processStep1(step1)
+        kx.processStep1(step1)
+    }
+
+    @Test
+    fun testPeripheralResetAllowsNewHandshake() {
+        val ed = BlerpcCrypto.generateEd25519KeyPair()
+        val kx = PeripheralKeyExchange(ed.privateKeyRaw)
+        val centralKx = CentralKeyExchange()
+        val step1 = centralKx.start()
+        kx.processStep1(step1)
+        kx.reset()
+        val centralKx2 = CentralKeyExchange()
+        val step1b = centralKx2.start()
+        val step2 = kx.processStep1(step1b)
+        assertEquals(129, step2.size)
+    }
+}
+
+class CryptoSessionCounterOverflowTest {
+    @Test(expected = IllegalStateException::class)
+    fun testEncryptAtMaxCounterThrows() {
+        val key = ByteArray(16) { 0x01 }
+        val session = BlerpcCryptoSession(key, isCentral = true)
+        // Use reflection to set txCounter to Int.MAX_VALUE
+        val field = BlerpcCryptoSession::class.java.getDeclaredField("txCounter")
+        field.isAccessible = true
+        field.setInt(session, Int.MAX_VALUE)
+        session.encrypt(byteArrayOf(0x01, 0x02))
+    }
+}
+
+class CryptoSessionThreadSafetyTest {
+    @Test
+    fun testConcurrentEncryptNoDuplicateCounters() {
+        val key = ByteArray(16) { 0x01 }
+        val session = BlerpcCryptoSession(key, isCentral = true)
+        val results = java.util.Collections.synchronizedList(mutableListOf<Int>())
+        val errors = java.util.Collections.synchronizedList(mutableListOf<Exception>())
+
+        val threads = (0 until 4).map {
+            Thread {
+                repeat(50) {
+                    try {
+                        val enc = session.encrypt(byteArrayOf(0x42))
+                        val counter = java.nio.ByteBuffer.wrap(enc, 0, 4)
+                            .order(java.nio.ByteOrder.LITTLE_ENDIAN).int
+                        results.add(counter)
+                    } catch (e: Exception) {
+                        errors.add(e)
+                    }
+                }
+            }
+        }
+
+        threads.forEach { it.start() }
+        threads.forEach { it.join() }
+
+        assertEquals(0, errors.size)
+        assertEquals(200, results.size)
+        assertEquals(200, results.toSet().size) // All counters unique
+    }
+}

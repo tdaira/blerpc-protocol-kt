@@ -327,21 +327,22 @@ class BlerpcCryptoSession(
     private val rxDirection: Byte = if (isCentral) DIRECTION_P2C else DIRECTION_C2P
 
     /** Encrypt [plaintext] and advance the send counter. */
-    fun encrypt(plaintext: ByteArray): ByteArray {
+    fun encrypt(plaintext: ByteArray): ByteArray = synchronized(this) {
+        check(txCounter >= 0 && txCounter < Int.MAX_VALUE) { "TX counter overflow: session must be rekeyed" }
         val result = BlerpcCrypto.encryptCommand(sessionKey, txCounter, txDirection, plaintext)
         txCounter++
-        return result
+        result
     }
 
     /** Decrypt [data] with replay protection. Throws on replay or auth failure. */
-    fun decrypt(data: ByteArray): ByteArray {
+    fun decrypt(data: ByteArray): ByteArray = synchronized(this) {
         val (counter, plaintext) = BlerpcCrypto.decryptCommand(sessionKey, rxDirection, data)
         if (rxFirstDone) {
             require(counter > rxCounter) { "Replay detected" }
         }
         rxCounter = counter
         rxFirstDone = true
-        return plaintext
+        plaintext
     }
 }
 
@@ -355,12 +356,15 @@ class CentralKeyExchange {
     private var x25519PrivKey: ByteArray? = null
     private var x25519PubKey: ByteArray? = null
     private var sessionKey: ByteArray? = null
+    private var state = 0
 
     /** Generate an ephemeral X25519 key pair and return the step 1 payload. */
     fun start(): ByteArray {
+        check(state == 0) { "Invalid state for start()" }
         val keyPair = BlerpcCrypto.generateX25519KeyPair()
         x25519PrivKey = keyPair.privateKeyRaw
         x25519PubKey = keyPair.publicKeyRaw
+        state = 1
         return BlerpcCrypto.buildStep1Payload(x25519PubKey!!)
     }
 
@@ -374,6 +378,7 @@ class CentralKeyExchange {
         step2Payload: ByteArray,
         verifyKeyCb: ((ByteArray) -> Boolean)? = null,
     ): ByteArray {
+        check(state == 1) { "Invalid state for processStep2()" }
         val (periphX25519Pub, signature, periphEd25519Pub) =
             BlerpcCrypto.parseStep2Payload(step2Payload)
 
@@ -390,11 +395,13 @@ class CentralKeyExchange {
         sessionKey = BlerpcCrypto.deriveSessionKey(sharedSecret, x25519PubKey!!, periphX25519Pub)
 
         val encryptedConfirm = BlerpcCrypto.encryptConfirmation(sessionKey!!, CONFIRM_CENTRAL)
+        state = 2
         return BlerpcCrypto.buildStep3Payload(encryptedConfirm)
     }
 
     /** Process step 4 from peripheral, verify confirmation, and return the session. */
     fun finish(step4Payload: ByteArray): BlerpcCryptoSession {
+        check(state == 2) { "Invalid state for finish()" }
         val encryptedPeriph = BlerpcCrypto.parseStep4Payload(step4Payload)
         val plaintext = BlerpcCrypto.decryptConfirmation(sessionKey!!, encryptedPeriph)
         require(plaintext.contentEquals(CONFIRM_PERIPHERAL)) { "Peripheral confirmation mismatch" }
@@ -413,6 +420,7 @@ class PeripheralKeyExchange(
 ) {
     private val ed25519PubKey: ByteArray
     private var sessionKey: ByteArray? = null
+    private var state = 0
 
     init {
         val kp = BlerpcCrypto.ed25519KeyPairFromSeed(ed25519Seed)
@@ -424,6 +432,7 @@ class PeripheralKeyExchange(
      * sign, derive session key, and produce step 2 payload.
      */
     fun processStep1(step1Payload: ByteArray): ByteArray {
+        check(state == 0) { "Invalid state for processStep1()" }
         val centralX25519Pubkey = BlerpcCrypto.parseStep1Payload(step1Payload)
 
         // Generate ephemeral X25519 keypair (forward secrecy)
@@ -435,11 +444,13 @@ class PeripheralKeyExchange(
         val sharedSecret = BlerpcCrypto.x25519SharedSecret(x25519Kp.privateKeyRaw, centralX25519Pubkey)
         sessionKey = BlerpcCrypto.deriveSessionKey(sharedSecret, centralX25519Pubkey, x25519Kp.publicKeyRaw)
 
+        state = 1
         return BlerpcCrypto.buildStep2Payload(x25519Kp.publicKeyRaw, signature, ed25519PubKey)
     }
 
     /** Process step 3 from central: verify confirmation, produce step 4 + session. */
     fun processStep3(step3Payload: ByteArray): Pair<ByteArray, BlerpcCryptoSession> {
+        check(state == 1) { "Invalid state for processStep3()" }
         val encrypted = BlerpcCrypto.parseStep3Payload(step3Payload)
         val plaintext = BlerpcCrypto.decryptConfirmation(sessionKey!!, encrypted)
         require(plaintext.contentEquals(CONFIRM_CENTRAL)) { "Central confirmation mismatch" }
@@ -459,8 +470,12 @@ class PeripheralKeyExchange(
     fun handleStep(payload: ByteArray): Pair<ByteArray, BlerpcCryptoSession?> {
         require(payload.isNotEmpty()) { "Empty key exchange payload" }
         return when (payload[0]) {
-            KEY_EXCHANGE_STEP1 -> Pair(processStep1(payload), null)
+            KEY_EXCHANGE_STEP1 -> {
+                check(state == 0) { "Invalid state for step 1" }
+                Pair(processStep1(payload), null)
+            }
             KEY_EXCHANGE_STEP3 -> {
+                check(state == 1) { "Invalid state for step 3" }
                 val (step4, session) = processStep3(payload)
                 Pair(step4, session)
             }
@@ -468,6 +483,12 @@ class PeripheralKeyExchange(
                 "Invalid key exchange step: 0x${payload[0].toInt().and(0xFF).toString(16).padStart(2, '0')}",
             )
         }
+    }
+
+    /** Reset the key exchange state machine to allow a new exchange. */
+    fun reset() {
+        state = 0
+        sessionKey = null
     }
 }
 
