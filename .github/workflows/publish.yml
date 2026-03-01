@@ -6,6 +6,7 @@ on:
 
 jobs:
   publish:
+    name: Publish to GitHub Packages
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -15,7 +16,7 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: "17"
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew ktlintCheck
       - run: ./gradlew test
