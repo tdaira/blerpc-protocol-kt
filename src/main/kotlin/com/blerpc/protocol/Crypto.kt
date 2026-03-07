@@ -27,7 +27,14 @@ const val KEY_EXCHANGE_STEP2: Byte = 0x02
 const val KEY_EXCHANGE_STEP3: Byte = 0x03
 const val KEY_EXCHANGE_STEP4: Byte = 0x04
 
-/** X25519 raw key prefix bytes for JCA encoding. */
+/**
+ * ASN.1 DER prefixes for X25519 keys in JCA encoding.
+ *
+ * PKCS#8 (private): SEQUENCE { INTEGER(0), SEQUENCE { OID(1.3.101.110) }, OCTET STRING { OCTET STRING { key } } }
+ * X.509  (public):  SEQUENCE { SEQUENCE { OID(1.3.101.110) }, BIT STRING { key } }
+ *
+ * These are the fixed-length headers before the raw 32-byte key material.
+ */
 private val X25519_PKCS8_PREFIX =
     byteArrayOf(
         0x30, 0x2E, 0x02, 0x01, 0x00, 0x30, 0x05, 0x06,
@@ -132,7 +139,9 @@ object BlerpcCrypto {
     ): Boolean {
         return try {
             Ed25519.verify(signature, 0, publicKeyRaw, 0, message, 0, message.size)
-        } catch (_: Exception) {
+        } catch (_: IllegalArgumentException) {
+            false
+        } catch (_: ArrayIndexOutOfBoundsException) {
             false
         }
     }
