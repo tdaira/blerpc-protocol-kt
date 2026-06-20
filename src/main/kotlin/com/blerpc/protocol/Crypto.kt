@@ -504,18 +504,75 @@ class PeripheralKeyExchange(
 }
 
 /**
+ * TOFU (Trust On First Use) store for peripheral Ed25519 identity keys.
+ *
+ * The E2E handshake signature binds only the ephemeral X25519 keys, not the
+ * peripheral's long-term identity key, so MitM resistance depends on the
+ * central pinning that identity. Implementations supply platform-appropriate
+ * persistence (file, SharedPreferences, …); this library owns the pinning
+ * policy and logic ([tofuVerify]).
+ */
+interface KnownKeyStore {
+    /** Stored hex-encoded Ed25519 public key for [deviceId], or null if unknown. */
+    fun get(deviceId: String): String?
+
+    /** Persist the hex-encoded Ed25519 public key for [deviceId]. */
+    fun put(
+        deviceId: String,
+        hexEd25519Pubkey: String,
+    )
+}
+
+/**
+ * TOFU verification against a [KnownKeyStore]: trust (and pin) the key on first
+ * use, and reject a key that differs from the pinned one on later connections.
+ */
+fun tofuVerify(
+    store: KnownKeyStore,
+    deviceId: String,
+    ed25519Pubkey: ByteArray,
+): Boolean {
+    val hex = ed25519Pubkey.joinToString("") { "%02x".format(it) }
+    val stored = store.get(deviceId)
+    if (stored == null) {
+        store.put(deviceId, hex)
+        return true
+    }
+    return stored == hex
+}
+
+/**
  * Perform the complete 4-step central key exchange using send/receive callbacks.
  *
- * @param send Callback to send a key exchange payload over BLE.
- * @param receive Callback to receive a key exchange payload from BLE.
- * @param verifyKeyCb Optional callback to verify the peripheral's Ed25519 public key.
- * @return An established [BlerpcCryptoSession] ready for encryption/decryption.
+ * Identity pinning is **on by default** (fail-closed): pass [knownKeys] and
+ * [deviceId] to pin the peripheral's Ed25519 identity (TOFU), or set
+ * [pinIdentity] to false to opt out (the session is then encrypted but NOT
+ * authenticated against a rogue peripheral). [verifyKeyCb] is an escape hatch
+ * for custom verification and takes precedence when provided.
+ *
+ * @throws IllegalArgumentException if pinning is on (the default) but no
+ *   [knownKeys]/[deviceId] and no [verifyKeyCb] were supplied.
  */
 suspend fun centralPerformKeyExchange(
     send: suspend (ByteArray) -> Unit,
     receive: suspend () -> ByteArray,
+    knownKeys: KnownKeyStore? = null,
+    deviceId: String? = null,
+    pinIdentity: Boolean = true,
     verifyKeyCb: ((ByteArray) -> Boolean)? = null,
 ): BlerpcCryptoSession {
+    val effectiveVerifyCb: ((ByteArray) -> Boolean)? =
+        when {
+            verifyKeyCb != null -> verifyKeyCb
+            !pinIdentity -> null
+            knownKeys != null && deviceId != null -> { pub -> tofuVerify(knownKeys, deviceId, pub) }
+            else -> throw IllegalArgumentException(
+                "Identity pinning is on by default but no KnownKeyStore/deviceId was provided. " +
+                    "Pass knownKeys and deviceId to pin the peripheral identity (TOFU), or set " +
+                    "pinIdentity = false to opt out (encrypted but unauthenticated).",
+            )
+        }
+
     val kx = CentralKeyExchange()
 
     // Step 1: Send central's ephemeral public key
@@ -526,7 +583,7 @@ suspend fun centralPerformKeyExchange(
     val step2 = receive()
 
     // Step 2 -> Step 3: Verify and produce confirmation
-    val step3 = kx.processStep2(step2, verifyKeyCb)
+    val step3 = kx.processStep2(step2, effectiveVerifyCb)
     send(step3)
 
     // Step 4: Receive peripheral's confirmation

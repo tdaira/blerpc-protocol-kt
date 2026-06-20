@@ -95,6 +95,7 @@ class CentralPerformKeyExchangeTest {
                         payloads.add(response)
                     },
                     receive = { payloads.removeFirst() },
+                    pinIdentity = false,
                 )
 
             assertNotNull(session)
@@ -149,6 +150,75 @@ class CentralPerformKeyExchangeTest {
             assertNotNull(session)
             assertEquals(1, seenKeys.size)
             assertArrayEquals(ed.publicKeyRaw, seenKeys[0])
+        }
+}
+
+class CentralTofuPinningTest {
+    private class InMemoryStore : KnownKeyStore {
+        val map = HashMap<String, String>()
+
+        override fun get(deviceId: String): String? = map[deviceId]
+
+        override fun put(
+            deviceId: String,
+            hexEd25519Pubkey: String,
+        ) {
+            map[deviceId] = hexEd25519Pubkey
+        }
+    }
+
+    private suspend fun exchange(
+        seed: ByteArray,
+        store: KnownKeyStore? = null,
+        deviceId: String? = null,
+        pinIdentity: Boolean = true,
+    ): BlerpcCryptoSession {
+        val periphKx = PeripheralKeyExchange(seed)
+        val payloads = mutableListOf<ByteArray>()
+        return centralPerformKeyExchange(
+            send = { payload ->
+                val (response, _) = periphKx.handleStep(payload)
+                payloads.add(response)
+            },
+            receive = { payloads.removeFirst() },
+            knownKeys = store,
+            deviceId = deviceId,
+            pinIdentity = pinIdentity,
+        )
+    }
+
+    @Test
+    fun testTofuPinsThenMatches() =
+        runBlocking {
+            val seed = BlerpcCrypto.generateEd25519KeyPair().privateKeyRaw
+            val store = InMemoryStore()
+            assertNotNull(exchange(seed, store, "dev-1")) // first use: pinned
+            assertEquals(1, store.map.size)
+            assertNotNull(exchange(seed, store, "dev-1")) // same key: matches
+        }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun testTofuRejectsChangedKey(): Unit =
+        runBlocking {
+            val store = InMemoryStore()
+            exchange(BlerpcCrypto.generateEd25519KeyPair().privateKeyRaw, store, "dev-1") // pin
+            // A different peripheral identity for the same device id must be rejected.
+            exchange(BlerpcCrypto.generateEd25519KeyPair().privateKeyRaw, store, "dev-1")
+        }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun testFailClosedWithoutStore(): Unit =
+        runBlocking {
+            // Pinning is on by default; no store + no opt-out must fail closed.
+            exchange(BlerpcCrypto.generateEd25519KeyPair().privateKeyRaw)
+        }
+
+    @Test
+    fun testOptOutSkipsPinning() =
+        runBlocking {
+            val session =
+                exchange(BlerpcCrypto.generateEd25519KeyPair().privateKeyRaw, pinIdentity = false)
+            assertNotNull(session)
         }
 }
 
