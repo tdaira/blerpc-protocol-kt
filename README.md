@@ -58,4 +58,4 @@ val plaintext = session.decrypt(ciphertext)
 
 ## License
 
-[LGPL-3.0](LICENSE) with [Static Linking Exception](LICENSING_EXCEPTION)
+[Apache-2.0](LICENSE)
